@@ -1,0 +1,64 @@
+// Identity tables for the rewrite. @@map names are prefixed with onyx_ so they
+// cannot collide with existing Neon tables (users, wallets, subscriptions,
+// coffre_fort, and the rest). This migration is create-only.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sessions      Session[]
+  loginAttempts LoginAttempt[]
+  auditLogs     AuditLog[]
+
+  @@map("onyx_users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("onyx_sessions")
+}
+
+model LoginAttempt {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email     String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@map("onyx_login_attempts")
+}
+
+/// Append-only. Rows are inserted and never updated or deleted.
+/// The client API exposes append only; update and delete helpers are not provided.
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("onyx_audit_logs")
+}

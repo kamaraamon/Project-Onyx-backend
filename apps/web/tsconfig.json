@@ -1,0 +1,17 @@
+{
+  "extends": "../../packages/config/tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "preserve",
+    "noEmit": true,
+    "declaration": false,
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "plugins": [{ "name": "next" }],
+    "allowJs": true,
+    "incremental": true,
+    "isolatedModules": true
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", "**/*.test.ts", "lint-fixtures"]
+}
