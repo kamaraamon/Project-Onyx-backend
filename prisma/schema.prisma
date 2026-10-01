@@ -1,0 +1,166 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                String             @id @default(uuid())
+  phone             String             @unique
+  passwordHash      String
+  isPremium         Boolean            @default(false)
+  trustScore        Int                @default(100)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  wallet            Wallet?
+  subscriptions     Subscription[]
+  offeredExchanges  Exchange[]         @relation("OfferingUser")
+  joinedExchanges   Exchange[]         @relation("JoiningUser")
+  vaultEntries      CoffreFort[]
+  conciergeRequests ConciergeRequest[]
+  securityAlerts    SecurityAlert[]
+  transactions      Transaction[]
+  reportedLitigations Litigation[]      @relation("LitigationReporter")
+  offendedLitigations Litigation[]      @relation("LitigationOffender")
+
+  @@map("users")
+}
+
+model Wallet {
+  id          String              @id @default(uuid())
+  userId      String              @unique
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance     Decimal             @default(0.00) @db.Decimal(15, 2)
+  budgetLimit Decimal             @default(25000.00) @db.Decimal(15, 2)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  transactions WalletTransaction[]
+
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id          String   @id @default(uuid())
+  walletId    String
+  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  amount      Decimal  @db.Decimal(15, 2)
+  fee         Decimal  @default(0.00) @db.Decimal(15, 2)
+  type        String   // 'recharge', 'payment', 'refund', 'fee'
+  status      String   @default("pending") // 'pending', 'completed', 'failed'
+  referenceId String?  @unique
+  createdAt   DateTime @default(now())
+
+  @@map("wallet_transactions")
+}
+
+model Subscription {
+  id              String       @id @default(uuid())
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  price           Float        // Floats as requested
+  currency        String       @default("FCFA")
+  nextBillingDate DateTime
+  status          String       @default("ACTIVE") // ACTIVE, VACATION, PENDING, CANCELLED
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  exchanges       Exchange[]
+  credential      CoffreFort?
+
+  @@map("subscriptions")
+}
+
+model Exchange {
+  id                    String        @id @default(uuid())
+  offeringUserId        String
+  offeringUser          User          @relation("OfferingUser", fields: [offeringUserId], references: [id], onDelete: Cascade)
+  joiningUserId         String?
+  joiningUser           User?         @relation("JoiningUser", fields: [joiningUserId], references: [id], onDelete: SetNull)
+  offeredSubscriptionId String
+  offeredSubscription   Subscription  @relation(fields: [offeredSubscriptionId], references: [id], onDelete: Cascade)
+  wantedSubName         String
+  status                String        @default("available") // 'available', 'completed', 'cancelled'
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@map("exchanges")
+}
+
+model CoffreFort {
+  id                String        @id @default(uuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId    String?       @unique // 1-to-1 relation link
+  subscription      Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  serviceName       String
+  encryptedUsername String
+  encryptedPassword String
+  iv                String
+  tag               String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@map("coffre_fort")
+}
+
+model ConciergeRequest {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actionType  String   // 'activation', 'suspension', 'resiliation', 'swapping'
+  serviceName String
+  status      String   @default("pending") // 'pending', 'completed'
+  slaExpiry   DateTime
+  createdAt   DateTime @default(now())
+
+  @@map("concierge_requests")
+}
+
+model SecurityAlert {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  channel   String   @default("both") // 'push', 'email', 'both'
+  createdAt DateTime @default(now())
+
+  @@map("security_alerts")
+}
+
+enum TransactionType {
+  DEPOSIT_WAVE
+  DEBIT_SUB
+  REFUND
+  TRANSFER_SPLIT
+}
+
+model Transaction {
+  id        String          @id @default(uuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Float
+  fee       Float           @default(0.0)
+  type      TransactionType
+  createdAt DateTime        @default(now())
+
+  @@map("transactions")
+}
+
+model Litigation {
+  id              String   @id @default(uuid())
+  reporterId      String
+  reporter        User     @relation("LitigationReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  offenderId      String
+  offender        User     @relation("LitigationOffender", fields: [offenderId], references: [id], onDelete: Cascade)
+  trustScoreImpact Int      @default(0)
+  status          String   @default("PENDING") // PENDING, RESOLVED, REJECTED
+  backupProfileId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("litigations")
+}
